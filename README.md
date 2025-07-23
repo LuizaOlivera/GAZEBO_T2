@@ -55,19 +55,17 @@ ros2 run turtlebot3_control_ros2 navigator_node
 
 A navegação é realizada por meio de "caminhos de avanço" (forward_paths) que consistem em uma série de waypoints intermediários. O robô se move de ponto a ponto, ajustando sua orientação e distância com base em cálculos derivados da odometria. Uma vez que um alvo é alcançado, o robô reverte o percurso para retornar à sua posição inicial, repetindo este ciclo para cada um dos alvos definidos.
 
-#A navegação é feita por caminhos predefinidos (`forward_paths`) compostos por waypoints intermediários cuidadosamente posicionados. O robô orienta-se até cada ponto usando cálculos de ângulo e distância com base na odometria.
-
-#Após alcançar o objetivo, o robô retorna à origem pelo caminho inverso. Esse processo é repetido para todos os alvos.
 
 ## 🚧 Desvios de Obstáculos
 
-Este projeto **não utiliza sensores como LIDAR**. Os obstáculos são evitados através do planejamento manual das rotas. Portanto, obstáculos dinâmicos ou não previstos no mapa não serão evitados automaticamente.
+É importante notar que este projeto não faz uso de sensores como o LIDAR para detecção de obstáculos. O desvio é realizado exclusivamente através do planejamento prévio das rotas. Isso significa que obstáculos que surgirem dinamicamente ou que não estiverem mapeados não serão automaticamente evitados pelo robô.
 
 ## ⚠️ Limitações
 
-- Não reage a obstáculos inesperados
-- Sensível a ruído na odometria
-- Caminhos fixos, sem replanejamento dinâmico
+- Não reage a obstáculos inesperados;
+- Sensível a ruído na odometria;
+- Caminhos fixos, sem replanejamento dinâmico;
+- Ele dá uma travadinha quando passa próximo de um obstáculo.
 
 ## ✅ Melhorias Futuras
 
@@ -84,4 +82,4 @@ Este projeto **não utiliza sensores como LIDAR**. Os obstáculos são evitados 
 
 ---
 
-Desenvolvido por Lucas Correa
+Criado por Lucas Correa
