@@ -5,35 +5,35 @@ from nav_msgs.msg import Odometry
 import math
 import time
 
-class WaypointNavigator(Node):
+class GazeboBotController(Node):
     def __init__(self):
-        super().__init__('waypoint_navigator')
+        super().__init__('gazebo_bot_controller')
 
-        self.cmd_pub = self.create_publisher(Twist, '/cmd_vel', 10)
+        self.publisher = self.create_publisher(Twist, '/cmd_vel', 10)
         self.create_subscription(Odometry, '/odom', self.odom_callback, 10)
 
-        self.forward_paths = [
-            [  # 1º objetivo
+        self.all_missions = [
+            [  # Objetivo 1
                 (-2.0, 2.0),
                 (0.36, 1.84),
                 (0.57, 0.91),
                 (1.75, 0.98),
                 (2.0, 2.0),
             ],
-            [  # 2º objetivo
+            [  # Objetivo 2
                 (-2.0, 2.0),
                 (0.42, 1.84),
                 (1.37, -0.18),
                 (2.10, -1.89),
             ],
-            [  # 3º objetivo
+            [  # Objetivo 3
                 (-2.0, 2.0),
                 (-0.55, 1.92),
                 (-1.0, -0.09),
                 (-1.0, -2.0), 
                 (-2.16, -2.15), 
             ],
-            [  # 4º objetivo
+            [  # Objetivo 4
                 (-2.0, 2.0),
                 (-0.55, 1.92),
                 (-0.55, -0.08),
@@ -42,82 +42,82 @@ class WaypointNavigator(Node):
             ],             
         ]
 
-        self.current_path_index = 0
-        self.returning = False
-        self.load_current_path()
+        self.obj_index = 0
+        self.is_returning = False
+        self.load_path()
 
-        self.x = 0.0
-        self.y = 0.0
-        self.yaw = 0.0
+        self.pos_x = 0.0
+        self.pos_y = 0.0
+        self.yaw_angle = 0.0
 
-        self.tolerance = 0.25
-        self.linear_speed = 0.2
-        self.angular_speed = 0.5
+        self.precision = 0.25
+        self.vel_linear = 0.2
+        self.vel_angular = 0.5
 
-        self.timer = self.create_timer(0.1, self.control_loop)
-        self.get_logger().info('Waypoint navigator started.')
+        self.timer = self.create_timer(0.1, self.navigate)
+        self.get_logger().info('[GAZEBO_T2] Navegação iniciada.')
 
-    def load_current_path(self):
-        self.waypoints = self.forward_paths[self.current_path_index]
-        self.return_path = list(reversed(self.waypoints))
-        self.waypoint_index = 0
-        self.get_logger().info(f"Iniciando caminho para objetivo {self.current_path_index + 1}.")
+    def load_path(self):
+        self.route = self.all_missions[self.obj_index]
+        self.return_route = list(reversed(self.route))
+        self.route_step = 0
+        self.get_logger().info(f"[GAZEBO_T2] Iniciando trajeto para alvo {self.obj_index + 1}.")
 
     def odom_callback(self, msg):
-        self.x = msg.pose.pose.position.x
-        self.y = msg.pose.pose.position.y
-        q = msg.pose.pose.orientation
-        siny_cosp = 2.0 * (q.w * q.z + q.x * q.y)
-        cosy_cosp = 1.0 - 2.0 * (q.y * q.y + q.z * q.z)
-        self.yaw = math.atan2(siny_cosp, cosy_cosp)
+        self.pos_x = msg.pose.pose.position.x
+        self.pos_y = msg.pose.pose.position.y
+        orient = msg.pose.pose.orientation
+        siny_cosp = 2.0 * (orient.w * orient.z + orient.x * orient.y)
+        cosy_cosp = 1.0 - 2.0 * (orient.y * orient.y + orient.z * orient.z)
+        self.yaw_angle = math.atan2(siny_cosp, cosy_cosp)
 
-    def control_loop(self):
-        if self.waypoint_index >= len(self.waypoints):
+    def navigate(self):
+        if self.route_step >= len(self.route):
             return
 
-        target = self.waypoints[self.waypoint_index]
-        dx = target[0] - self.x
-        dy = target[1] - self.y
-        distance = math.hypot(dx, dy)
-        angle_to_target = math.atan2(dy, dx)
-        angle_diff = self.normalize_angle(angle_to_target - self.yaw)
+        goal = self.route[self.route_step]
+        dx = goal[0] - self.pos_x
+        dy = goal[1] - self.pos_y
+        dist = math.hypot(dx, dy)
+        angle = math.atan2(dy, dx)
+        diff = self.adjust_angle(angle - self.yaw_angle)
 
-        twist = Twist()
+        move = Twist()
 
-        if distance > self.tolerance:
-            if abs(angle_diff) > 0.2:
-                twist.angular.z = self.angular_speed * (angle_diff / abs(angle_diff))
-                twist.linear.x = 0.0
+        if dist > self.precision:
+            if abs(diff) > 0.2:
+                move.angular.z = self.vel_angular * (diff / abs(diff))
+                move.linear.x = 0.0
             else:
-                twist.linear.x = min(self.linear_speed, 0.5 * distance)
-                twist.angular.z = 0.0
+                move.linear.x = min(self.vel_linear, 0.5 * dist)
+                move.angular.z = 0.0
         else:
-            self.get_logger().info(f'Alvo {self.waypoint_index} alcançado: {target}')
-            self.waypoint_index += 1
+            self.get_logger().info(f"[GAZEBO_T2] Checkpoint {self.route_step} concluído: {goal}")
+            self.route_step += 1
 
-            if self.waypoint_index == len(self.waypoints):
-                if not self.returning:
-                    self.get_logger().info("Item coletado. Retornando à origem.")
+            if self.route_step == len(self.route):
+                if not self.is_returning:
+                    self.get_logger().info("[GAZEBO_T2] Objeto alcançado. Voltando à base.")
                     time.sleep(2)
-                    self.returning = True
-                    self.waypoints = self.return_path
-                    self.waypoint_index = 1
+                    self.is_returning = True
+                    self.route = self.return_route
+                    self.route_step = 1
                 else:
-                    self.get_logger().info("Retornou à origem.")
+                    self.get_logger().info("[GAZEBO_T2] Retornou à origem.")
 
-                    self.current_path_index += 1
-                    if self.current_path_index < len(self.forward_paths):
-                        self.returning = False
-                        self.load_current_path()
+                    self.obj_index += 1
+                    if self.obj_index < len(self.all_missions):
+                        self.is_returning = False
+                        self.load_path()
                     else:
-                        self.get_logger().info("Missão concluída com todos os objetivos.")
-                        self.cmd_pub.publish(Twist())
+                        self.get_logger().info("[GAZEBO_T2] Todas as missões foram realizadas.")
+                        self.publisher.publish(Twist())
                         rclpy.shutdown()
                         return
 
-        self.cmd_pub.publish(twist)
+        self.publisher.publish(move)
 
-    def normalize_angle(self, angle):
+    def adjust_angle(self, angle):
         while angle > math.pi:
             angle -= 2*math.pi
         while angle < -math.pi:
@@ -126,7 +126,7 @@ class WaypointNavigator(Node):
 
 def main(args=None):
     rclpy.init(args=args)
-    node = WaypointNavigator()
+    node = GazeboBotController()
     rclpy.spin(node)
     node.destroy_node()
     rclpy.shutdown()
